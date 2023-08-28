@@ -3,6 +3,7 @@ import { CommentOnQuestionUseCase } from './comment-on-question'
 import { InMemoryQuestionsRepository } from 'test/repositories/in-memory-questions-repository'
 import { makeQuestion } from 'test/factories/make-question'
 import { UniqueEntityID } from '@/core/entities/unique-entity-id'
+import { ResourceNotFoundError } from './errors/resource-not-found-error'
 
 let inMemoryQuestionsRepository: InMemoryQuestionsRepository
 let inMemoryQuestionCommentsRepository: InMemoryQuestionCommentsRepository
@@ -24,17 +25,19 @@ describe('Comment On Question', () => {
 
     await inMemoryQuestionsRepository.create(question)
 
-    const { questionComment } = await sut.execute({
+    const result = await sut.execute({
       authorId: 'author-1',
       content: 'Test comment',
       questionId: 'question-1',
     })
 
-    expect(questionComment.id).toBeTruthy()
-    expect(inMemoryQuestionCommentsRepository.items[0].id).toEqual(
-      questionComment.id,
-    )
-    expect(questionComment.content).toEqual('Test comment')
+    expect(result.isRight()).toBe(true)
+    if (result.isRight()) {
+      expect(inMemoryQuestionCommentsRepository.items[0]).toEqual(
+        result.value.questionComment,
+      )
+      expect(result.value.questionComment.content).toEqual('Test comment')
+    }
   })
 
   it('should not be able to create a question comment from an incorrect question id', async () => {
@@ -42,12 +45,13 @@ describe('Comment On Question', () => {
       makeQuestion({}, new UniqueEntityID('question-1')),
     )
 
-    await expect(() =>
-      sut.execute({
-        authorId: 'author-1',
-        content: 'Test comment',
-        questionId: 'question-2',
-      }),
-    ).rejects.toBeInstanceOf(Error)
+    const result = await sut.execute({
+      authorId: 'author-1',
+      content: 'Test comment',
+      questionId: 'question-2',
+    })
+
+    expect(result.isLeft()).toBe(true)
+    expect(result.value).toBeInstanceOf(ResourceNotFoundError)
   })
 })
